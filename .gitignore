@@ -19,3 +19,9 @@ target
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+build_driver.bat
+commands.txt
+CpuTempDrv.sys
+cpu_temp_drv.obj
+# Will not be providing a way to build the driver due to security concerns.
