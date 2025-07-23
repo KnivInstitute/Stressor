@@ -21,8 +21,6 @@ pub fn ui_storage_info(app: &mut SystemMonitorApp, ui: &mut egui::Ui) {
                     disk.kind(),
                     String::from_utf8_lossy(disk.file_system())
                 ));
-                // Connection info (SATA/PCIe and generation) is not available via sysinfo crate.
-                // You would need platform-specific code or external crates for this.
                 ui.label("Connection: N/A");
             });
             ui.horizontal(|ui| {

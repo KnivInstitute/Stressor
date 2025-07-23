@@ -4,11 +4,12 @@
 
 ---
 
-Have to's for next commit:
-- Configure Windows VM sandbox for kernel testing
-- Create and run the CPU temperature exposure kernel level driver
-- Pair driver with rust application successfully
-- Get kernel signed and authenticated by microsoft for not lots of $$$
+Have to's for next commits:
+
+- Test the Kernel driver on a non-VM system
+- Pair the driver with the Rust application
+- Write the stress test for the system storage drive (allow selectable drive stress tests)
+- Write the CPU stress test (score determined by number of hard executions ran, figure out an algorithm to test?)
 
 ## Features (to build and already built aren't differentiated until v1.0)
 
@@ -31,19 +32,23 @@ Have to's for next commit:
 ## Getting Started
 
 ### Prerequisites
+
 - **Rust** (latest stable, [install here](https://rustup.rs/))
-- **Windows 10/11** (recommended)
+- **Windows 10/11** (recommended) with test signing mode enabled and secure boot disabled (required for unsigned kernel drivers)
 
 ### Running from Source
 
 1. **Clone the repository:**
+
    ```sh
    git clone <repo-url>
    cd Stressor
    ```
+
 2. **Build and run:**
+
    ```sh
-   cargo run --release
+   cargo run 
    ```
 
 ## Usage Goal (workflow view)
@@ -70,4 +75,4 @@ Contributions are welcome! Please open issues or pull requests for bug fixes, fe
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License

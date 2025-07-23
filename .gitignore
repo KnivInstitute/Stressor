@@ -20,8 +20,24 @@ target
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-build_driver.bat
-commands.txt
+# Custom removals below
+
+# Builds the driver, will not be providing a way to build the driver due to security concerns.
+build_driver.bat 
+
+# Lists all the commands needed to build, sign and deploy the driver. Also not providing for security reasons.
+commands.md
+
+# Driver file, will provide in final release.
 CpuTempDrv.sys
+
+# OBJ file from built driver, not needed in final release.
 cpu_temp_drv.obj
-# Will not be providing a way to build the driver due to security concerns.
+
+# Executables and object files from the read_cpu_temp utility, not needed in final release.
+read_cpu_temp.exe 
+read_cpu_temp.obj
+READCPUTemp.exe
+
+# Certificate file for signing the driver, not needed in final release. 
+MyTestDriverCert.cer 
