@@ -10,7 +10,6 @@ use std::{
 use atomic_float::AtomicF64;
 use rand::{thread_rng, Rng};
 use chrono::Local;
-use std::println;
 
 pub struct StorageStress {
     running: Arc<AtomicBool>,

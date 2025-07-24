@@ -1,24 +1,21 @@
 use eframe::egui;
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread,
-};
+use crate::app::cpu_stress::CpuStress;
 use crate::app::storage_stress::StorageStress;
+use crate::app::selectable_stress::SelectableStress;
 
 
 pub struct StressTest {
-    running: Arc<AtomicBool>,
+    pub cpu_stress: CpuStress,
     pub storage_stress: StorageStress,
+    pub selectable_stress: SelectableStress,
 }
 
 impl Default for StressTest {
     fn default() -> Self {
         Self {
-            running: Arc::new(AtomicBool::new(false)),
+            cpu_stress: CpuStress::default(),
             storage_stress: StorageStress::default(),
+            selectable_stress: SelectableStress::default(),
         }
     }
 }
@@ -28,37 +25,15 @@ impl StressTest {
         ui.heading("Stress Tests");
         ui.separator();
         egui::CollapsingHeader::new("CPU Stress Test").default_open(true).show(ui, |ui| {
-            ui.add_space(10.0);
-            ui.label("This section will contain CPU stress testing functionality.");
-            ui.label("Implementation coming soon...");
-            ui.add_space(20.0);
-            if ui
-                .button(if self.running.load(Ordering::SeqCst) {
-                    "Stop CPU Stress"
-                } else {
-                    "Start CPU Stress"
-                })
-                .clicked()
-            {
-                let running = self.running.clone();
-                if running.load(Ordering::SeqCst) {
-                    running.store(false, Ordering::SeqCst);
-                } else {
-                    running.store(true, Ordering::SeqCst);
-                    thread::spawn(move || {
-                        while running.load(Ordering::SeqCst) {
-                            std::hint::spin_loop();
-                        }
-                    });
-                }
-            }
-            if self.running.load(Ordering::SeqCst) {
-                ui.colored_label(egui::Color32::RED, "⚠ CPU Stress Test Running");
-            }
+            self.cpu_stress.ui(ctx, ui);
         });
         ui.separator();
         egui::CollapsingHeader::new("Storage Stress Test").default_open(true).show(ui, |ui| {
             self.storage_stress.ui(ctx, ui);
+        });
+        ui.separator();
+        egui::CollapsingHeader::new("Custom/Selectable Stress Test").default_open(true).show(ui, |ui| {
+            self.selectable_stress.ui(ctx, ui);
         });
     }
 }

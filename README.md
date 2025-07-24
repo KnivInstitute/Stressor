@@ -4,13 +4,6 @@
 
 ---
 
-Have to's for next commits:
-
-- Test the Kernel driver on a non-VM system
-- Pair the driver with the Rust application
-- Write the stress test for the system storage drive (allow selectable drive stress tests)
-- Write the CPU stress test (score determined by number of hard executions ran, figure out an algorithm to test?)
-
 ## Features (to build and already built aren't differentiated until v1.0)
 
 - **Real-Time System Monitoring**
@@ -35,6 +28,7 @@ Have to's for next commits:
 
 - **Rust** (latest stable, [install here](https://rustup.rs/))
 - **Windows 10/11** (recommended) with test signing mode enabled and secure boot disabled (required for unsigned kernel drivers)
+- **OpenGL 2.0** or higher for correct GUI loading
 
 ### Running from Source
 
@@ -51,7 +45,7 @@ Have to's for next commits:
    cargo run 
    ```
 
-## Usage Goal (workflow view)
+## Usage
 
 1. **Launch Stressor**
    - Double-click the EXE

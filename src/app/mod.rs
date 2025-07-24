@@ -3,8 +3,10 @@ pub mod memory;
 pub mod storage;
 pub mod stress_test;
 pub mod storage_stress;
+pub mod cpu_stress;
 pub mod analyzer;
 pub mod onload;
+pub mod selectable_stress;
 use self::analyzer::Analyzer;
 use self::stress_test::StressTest;
 use eframe::egui;
@@ -45,7 +47,7 @@ impl Default for SystemMonitorApp {
             .max()
             .unwrap_or(3000);
         #[cfg(windows)]
-        let (wmi_com, wmi_con) = {
+        let (_wmi_com, wmi_con) = {
             let com = wmi::COMLibrary::new().ok();
             let con = com.as_ref().and_then(|c| wmi::WMIConnection::new(c.clone()).ok());
             (com, con)
