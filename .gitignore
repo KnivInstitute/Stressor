@@ -41,3 +41,6 @@ READCPUTemp.exe
 
 # Certificate file for signing the driver, not needed in final release. 
 MyTestDriverCert.cer 
+
+# All storage stress test logs will not be be provided because they are redundant (you can generate your own!)
+log/

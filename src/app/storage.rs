@@ -1,5 +1,6 @@
 use eframe::egui::{self, Color32};
-use sysinfo::{SystemExt, DiskExt};
+use sysinfo::DiskExt;
+use sysinfo::SystemExt;
 use crate::app::SystemMonitorApp;
 
 pub fn update_storage_data(_app: &mut SystemMonitorApp) {

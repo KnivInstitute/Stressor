@@ -2,6 +2,7 @@ use eframe::egui;
 use std::{
     collections::VecDeque,
     time::{Duration, Instant},
+    fs,
 };
 use sysinfo::{System, SystemExt, CpuExt};
 use super::stress_test::StressTest;
@@ -9,59 +10,6 @@ use super::stress_test::StressTest;
 pub mod cpu;
 pub mod memory;
 pub mod storage;
-
-pub enum Tab {
-    SystemInfo,
-    Stress,
-}
-
-pub struct SystemMonitorApp {
-    pub sys: System,
-    pub current_tab: Tab,
-    pub stress_test: StressTest,
-    pub cpu_history: VecDeque<(f64, f64)>,
-    pub memory_history: VecDeque<(f64, f64)>,
-    pub last_update: Instant,
-    pub time_counter: f64,
-    pub max_cpu_freq: u64,
-    pub current_cpu_freq: u64,
-    #[cfg(windows)]
-    pub wmi_com: Option<wmi::COMLibrary>,
-    #[cfg(windows)]
-    pub wmi_con: Option<wmi::WMIConnection>,
-}
-
-impl Default for SystemMonitorApp {
-    fn default() -> Self {
-        let mut sys = System::new_all();
-        sys.refresh_all();
-        let max_freq = sys.cpus().iter()
-            .map(|cpu| cpu.frequency())
-            .max()
-            .unwrap_or(3000);
-        #[cfg(windows)]
-        let (wmi_com, wmi_con) = {
-            let com = wmi::COMLibrary::new().ok();
-            let con = com.as_ref().and_then(|c| wmi::WMIConnection::new(c.clone()).ok());
-            (com, con)
-        };
-        Self {
-            sys,
-            current_tab: Tab::SystemInfo,
-            stress_test: StressTest::default(),
-            cpu_history: VecDeque::with_capacity(100),
-            memory_history: VecDeque::with_capacity(100),
-            last_update: Instant::now(),
-            time_counter: 0.0,
-            max_cpu_freq: max_freq,
-            current_cpu_freq: 0,
-            #[cfg(windows)]
-            wmi_com,
-            #[cfg(windows)]
-            wmi_con,
-        }
-    }
-}
 
 impl SystemMonitorApp {
     pub fn update_system_data(&mut self) {
@@ -91,15 +39,25 @@ impl eframe::App for SystemMonitorApp {
                 {
                     self.current_tab = Tab::Stress;
                 }
+                if ui
+                    .selectable_label(matches!(self.current_tab, Tab::Analyzers), "Analyzers")
+                    .clicked()
+                {
+                    self.current_tab = Tab::Analyzers;
+                }
             });
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             match self.current_tab {
                 Tab::SystemInfo => self.ui_system_info(ui),
-                Tab::Stress => self.stress_test.ui(ui),
+                Tab::Stress => self.stress_test.ui(ctx, ui),
+                Tab::Analyzers => {
+                    // Analyzer logic will be in analyzer.rs
+                    ui.label("Analyzer UI will be here");
+                }
             }
         });
-        ctx.request_repaint_after(Duration::from_millis(500));
+        ctx.request_repaint_after(Duration::from_millis(100));
     }
 }
 

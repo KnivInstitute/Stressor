@@ -2,17 +2,23 @@ pub mod cpu;
 pub mod memory;
 pub mod storage;
 pub mod stress_test;
+pub mod storage_stress;
+pub mod analyzer;
+pub mod onload;
+use self::analyzer::Analyzer;
 use self::stress_test::StressTest;
 use eframe::egui;
 use std::{
     collections::VecDeque,
     time::{Duration, Instant},
 };
-use sysinfo::{System, SystemExt, CpuExt};
+use sysinfo::{System, CpuExt};
+use sysinfo::SystemExt;
 
 pub enum Tab {
     SystemInfo,
     Stress,
+    Analyzers,
 }
 
 pub struct SystemMonitorApp {
@@ -27,6 +33,7 @@ pub struct SystemMonitorApp {
     pub current_cpu_freq: u64,
     #[cfg(windows)]
     pub wmi_con: Option<wmi::WMIConnection>,
+    pub analyzer: Analyzer,
 }
 
 impl Default for SystemMonitorApp {
@@ -38,7 +45,7 @@ impl Default for SystemMonitorApp {
             .max()
             .unwrap_or(3000);
         #[cfg(windows)]
-        let (_wmi_com, wmi_con) = {
+        let (wmi_com, wmi_con) = {
             let com = wmi::COMLibrary::new().ok();
             let con = com.as_ref().and_then(|c| wmi::WMIConnection::new(c.clone()).ok());
             (com, con)
@@ -55,6 +62,7 @@ impl Default for SystemMonitorApp {
             current_cpu_freq: 0,
             #[cfg(windows)]
             wmi_con,
+            analyzer: Analyzer::default(),
         }
     }
 }
@@ -87,24 +95,35 @@ impl eframe::App for SystemMonitorApp {
                 {
                     self.current_tab = Tab::Stress;
                 }
+                if ui
+                    .selectable_label(matches!(self.current_tab, Tab::Analyzers), "Analyzers")
+                    .clicked()
+                {
+                    self.current_tab = Tab::Analyzers;
+                }
             });
         });
         egui::CentralPanel::default().show(ctx, |ui| {
             match self.current_tab {
                 Tab::SystemInfo => self.ui_system_info(ui),
-                Tab::Stress => self.stress_test.ui(ui),
+                Tab::Stress => self.stress_test.ui(ctx, ui),
+                Tab::Analyzers => self.analyzer.ui(ctx, ui),
             }
         });
         ctx.request_repaint_after(Duration::from_millis(500));
     }
 }
 
-pub fn run_app() -> eframe::Result<()> {
+pub fn run_app_with(app: Box<dyn eframe::App>, is_splash: bool) -> eframe::Result<()> {
     let mut options = eframe::NativeOptions::default();
-    options.viewport.inner_size = Some([800.0 * 1.3, 600.0 * 1.1].into());
+    if is_splash {
+        options.viewport.inner_size = Some([800.0 * 0.91, 600.0 * 0.77].into()); // ~30% smaller area
+    } else {
+        options.viewport.inner_size = Some([800.0 * 1.3, 600.0 * 1.1].into());
+    }
     eframe::run_native(
         "System Monitor & Stress Tool",
         options,
-        Box::new(|_cc| Ok(Box::new(SystemMonitorApp::default()))),
+        Box::new(|_cc| Ok(app)),
     )
 } 
