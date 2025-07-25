@@ -1,6 +1,31 @@
 use eframe::egui::{self, Color32, Stroke};
 use sysinfo::{SystemExt, CpuExt};
 use crate::app::SystemMonitorApp;
+use std::collections::VecDeque;
+use log::{error, info};
+
+pub struct History<T> {
+    data: VecDeque<T>,
+    capacity: usize,
+}
+
+impl<T> History<T> {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            data: VecDeque::with_capacity(capacity),
+            capacity,
+        }
+    }
+    pub fn push(&mut self, value: T) {
+        if self.data.len() == self.capacity {
+            self.data.pop_front();
+        }
+        self.data.push_back(value);
+    }
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.data.iter()
+    }
+}
 
 #[cfg(windows)]
 fn try_read_cpu_temperature() -> Option<u32> {
@@ -65,10 +90,8 @@ pub fn update_cpu_data(app: &mut SystemMonitorApp) {
         let avg_cpu_usage = app.sys.cpus().iter()
             .map(|cpu| cpu.cpu_usage() as f64)
             .sum::<f64>() / app.sys.cpus().len() as f64;
-        app.cpu_history.push_back((app.time_counter, avg_cpu_usage));
-        if app.cpu_history.len() > 100 {
-            app.cpu_history.pop_front();
-        }
+        app.cpu_history.push((app.time_counter, avg_cpu_usage));
+        // No need to pop_front, handled by History struct
         // Update CPU frequency (platform-specific)
         #[cfg(windows)]
         {
@@ -84,7 +107,7 @@ pub fn update_cpu_data(app: &mut SystemMonitorApp) {
                 let results: Result<Vec<ProcessorInfo>, _> = wmi_con.query();
                 match results {
                     Ok(infos) => {
-                        println!("[WMI] ProcessorInfo: {:?}", infos);
+                        info!("[WMI] ProcessorInfo: {:?}", infos);
                         if let Some(info) = infos.get(0) {
                             if let Some(cur) = info.current_clock_speed {
                                 app.current_cpu_freq = cur;
@@ -95,12 +118,16 @@ pub fn update_cpu_data(app: &mut SystemMonitorApp) {
                         }
                     },
                     Err(e) => {
-                        println!("[WMI] Query error: {}", e);
+                        error!("[WMI] Query error: {}", e);
+                        app.last_error = Some(format!("WMI Query error: {}", e));
                     }
                 }
             }
             // Try to get temperature from driver
             app.cpu_temperature_celsius = try_read_cpu_temperature();
+            if app.cpu_temperature_celsius.is_none() {
+                app.last_error = Some("CPU temperature unavailable".to_string());
+            }
         }
         #[cfg(not(windows))]
         {
@@ -108,6 +135,7 @@ pub fn update_cpu_data(app: &mut SystemMonitorApp) {
                 .map(|cpu| cpu.frequency())
                 .unwrap_or(0);
             app.cpu_temperature_celsius = None;
+            app.last_error = Some("CPU temperature unavailable".to_string());
         }
         app.last_update = now;
     }
@@ -116,6 +144,9 @@ pub fn update_cpu_data(app: &mut SystemMonitorApp) {
 pub fn ui_cpu_info(app: &mut SystemMonitorApp, ui: &mut egui::Ui) {
     ui.heading("🖥️ System Information & Monitoring");
     ui.separator();
+    if let Some(ref err) = app.last_error {
+        ui.colored_label(egui::Color32::RED, err);
+    }
     egui::Frame::group(ui.style()).show(ui, |ui| {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
@@ -153,7 +184,7 @@ pub fn ui_cpu_info(app: &mut SystemMonitorApp, ui: &mut egui::Ui) {
             });
             ui.separator();
             ui.vertical(|ui| {
-                draw_simple_graph(app, ui, &app.cpu_history, Color32::LIGHT_BLUE, "CPU Usage History", 100.0);
+                draw_simple_graph(ui, &app.cpu_history, Color32::LIGHT_BLUE, "CPU Usage History", 100.0);
             });
         });
     });
@@ -161,9 +192,16 @@ pub fn ui_cpu_info(app: &mut SystemMonitorApp, ui: &mut egui::Ui) {
     ui.separator();
 }
 
-pub fn draw_simple_graph(_app: &SystemMonitorApp, ui: &mut egui::Ui, data: &std::collections::VecDeque<(f64, f64)>, color: Color32, label: &str, max_val: f32) {
+// Move draw_simple_graph to a shared location (e.g., mod.rs or a new ui_utils.rs), but for now, make it generic and reusable for both CPU and memory.
+pub fn draw_simple_graph<T: Copy + Into<f64>>(
+    ui: &mut egui::Ui,
+    data: &History<(f64, T)>,
+    color: Color32,
+    label: &str,
+    max_val: f32,
+) {
     ui.label(label);
-    if data.is_empty() {
+    if data.iter().count() == 0 {
         ui.label("No data yet...");
         return;
     }
@@ -183,9 +221,9 @@ pub fn draw_simple_graph(_app: &SystemMonitorApp, ui: &mut egui::Ui, data: &std:
                 Stroke::new(0.5, Color32::from_gray(40)),
             );
         }
-        let points: Vec<egui::Pos2> = data.iter().enumerate().map(|(i, (_, value))| {
-            let x = rect.min.x + (i as f32 / (data.len() - 1).max(1) as f32) * rect.width();
-            let y = rect.max.y - (*value as f32 / max_val) * rect.height();
+        let points: Vec<egui::Pos2> = data.iter().enumerate().map(|(i, &(_, value))| {
+            let x = rect.min.x + (i as f32 / (data.iter().count() - 1).max(1) as f32) * rect.width();
+            let y = rect.max.y - (value.into() as f32 / max_val) * rect.height();
             egui::pos2(x, y.clamp(rect.min.y, rect.max.y))
         }).collect();
         for i in 1..points.len() {
@@ -194,11 +232,11 @@ pub fn draw_simple_graph(_app: &SystemMonitorApp, ui: &mut egui::Ui, data: &std:
                 Stroke::new(2.0, color),
             );
         }
-        if let Some((_, current_value)) = data.back() {
+        if let Some(&(_, current_value)) = data.iter().last() {
             painter.text(
                 egui::pos2(rect.max.x - 50.0, rect.min.y + 10.0),
                 egui::Align2::LEFT_TOP,
-                format!("{:.1}%", current_value),
+                format!("{:.1}%", current_value.into()),
                 egui::FontId::proportional(12.0),
                 color,
             );

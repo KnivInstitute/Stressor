@@ -31,8 +31,6 @@ fn set_thread_priority_for_mode(max_stress: bool) {
 #[cfg(not(windows))]
 fn set_thread_priority_for_mode(_max_stress: bool) {}
 
-const CPU_USAGE_HISTORY_LEN: usize = 100;
-
 pub struct CpuStress {
     running: Arc<AtomicBool>,
     cycle_secs: Arc<Mutex<u32>>,
@@ -44,8 +42,8 @@ pub struct CpuStress {
     responsiveness_mode: Arc<Mutex<bool>>, // true = safe, false = max
 }
 
-impl Default for CpuStress {
-    fn default() -> Self {
+impl CpuStress {
+    pub fn from_config(config: &crate::app::config::Config) -> Self {
         Self {
             running: Arc::new(AtomicBool::new(false)),
             cycle_secs: Arc::new(Mutex::new(10)),
@@ -53,7 +51,7 @@ impl Default for CpuStress {
             last_score: Arc::new(AtomicF64::new(0.0)),
             live_rate: Arc::new(AtomicF64::new(0.0)),
             log_path: Arc::new(Mutex::new(None)),
-            cpu_usage_history: Arc::new(Mutex::new(VecDeque::with_capacity(CPU_USAGE_HISTORY_LEN))),
+            cpu_usage_history: Arc::new(Mutex::new(VecDeque::with_capacity(config.cpu_usage_history_len))),
             responsiveness_mode: Arc::new(Mutex::new(true)), // default to safe (checked)
         }
     }
@@ -95,6 +93,7 @@ impl CpuStress {
             let live_rate = self.live_rate.clone();
             let log_path = self.log_path.clone();
             let cpu_usage_history = self.cpu_usage_history.clone();
+            let cpu_usage_history_len = self.cpu_usage_history.lock().unwrap().capacity();
             let responsiveness_mode = *self.responsiveness_mode.lock().unwrap();
             let ctx = ctx.clone();
             let dev_mode = dev_mode;
@@ -190,7 +189,7 @@ impl CpuStress {
                         let avg_cpu_usage = sys.cpus().iter().map(|cpu| cpu.cpu_usage() as f64).sum::<f64>() / sys.cpus().len() as f64;
                         {
                             let mut hist = cpu_usage_history.lock().unwrap();
-                            if hist.len() >= CPU_USAGE_HISTORY_LEN {
+                            if hist.len() >= cpu_usage_history_len {
                                 hist.pop_front();
                             }
                             hist.push_back(avg_cpu_usage);

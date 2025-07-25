@@ -24,8 +24,8 @@ pub struct StorageStress {
     buffer_mb: Arc<Mutex<u32>>,
 }
 
-impl Default for StorageStress {
-    fn default() -> Self {
+impl StorageStress {
+    pub fn from_config(config: &crate::app::config::Config) -> Self {
         Self {
             running: Arc::new(AtomicBool::new(false)),
             write_speeds: Arc::new(Mutex::new(Vec::new())),
@@ -33,10 +33,10 @@ impl Default for StorageStress {
             current_write_speed: Arc::new(AtomicF64::new(0.0)),
             current_read_speed: Arc::new(AtomicF64::new(0.0)),
             log_path: Arc::new(Mutex::new(None)),
-            duration_secs: Arc::new(Mutex::new(20)),
+            duration_secs: Arc::new(Mutex::new(config.storage_duration_secs)),
             avg_write: Arc::new(AtomicF64::new(0.0)),
             avg_read: Arc::new(AtomicF64::new(0.0)),
-            buffer_mb: Arc::new(Mutex::new(8)),
+            buffer_mb: Arc::new(Mutex::new(config.storage_buffer_mb)),
         }
     }
 }

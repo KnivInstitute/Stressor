@@ -10,12 +10,12 @@ pub struct MatrixStressConfig {
     pub threads: usize,
 }
 
-impl Default for MatrixStressConfig {
-    fn default() -> Self {
+impl MatrixStressConfig {
+    pub fn from_config(config: &crate::app::config::Config) -> Self {
         Self {
-            matrix_size: 64,
-            duration_secs: 10,
-            threads: num_cpus::get(),
+            matrix_size: config.matrix_size,
+            duration_secs: config.matrix_duration_secs,
+            threads: config.matrix_threads,
         }
     }
 }
@@ -25,6 +25,11 @@ pub struct MatrixStress {
 }
 
 impl MatrixStress {
+    pub fn from_config(config: &crate::app::config::Config) -> Self {
+        Self {
+            config: MatrixStressConfig::from_config(config),
+        }
+    }
     pub fn run_with_counts(&self, stop_flag: Arc<AtomicBool>, op_counts: &mut [u64]) -> u64 {
         let mut handles = Vec::new();
         let results = Arc::new(std::sync::Mutex::new(vec![0u64; self.config.threads]));

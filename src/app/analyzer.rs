@@ -30,15 +30,6 @@ impl Default for Analyzer {
 }
 
 impl Analyzer {
-    pub fn with_dev_mode(dev_mode: bool) -> Self {
-        Self {
-            analyzer_tab: AnalyzerTab::StorageStress,
-            selected_log_index: None,
-            dev_mode,
-            marked_for_delete: None,
-        }
-    }
-
     pub fn log_dir(&self) -> std::path::PathBuf {
         if self.dev_mode {
             std::path::PathBuf::from("log")

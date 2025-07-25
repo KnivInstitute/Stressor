@@ -5,16 +5,16 @@ use std::time::{Duration, Instant};
 use chrono::Local;
 use std::fs::OpenOptions;
 use std::io::Write;
+use crate::app::config::Config;
+use matrix_stress::MatrixStressConfig;
+use compression_stress::CompressionStressConfig;
+use ram_stress::RamStressConfig;
+use tightloop_stress::TightLoopStressConfig;
 
 mod matrix_stress;
 mod compression_stress;
 mod ram_stress;
 mod tightloop_stress;
-
-use matrix_stress::{MatrixStress, MatrixStressConfig};
-use compression_stress::{CompressionStress, CompressionStressConfig};
-use ram_stress::{RamStress, RamStressConfig};
-use tightloop_stress::{TightLoopStress, TightLoopStressConfig};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CpuWorkloadKind {
@@ -57,25 +57,22 @@ pub struct SelectableStress {
     pub log_path: Arc<Mutex<Option<String>>>,
 }
 
-impl Default for SelectableStress {
-    fn default() -> Self {
+impl SelectableStress {
+    pub fn from_config(config: &Config) -> Self {
         Self {
             selected_cpu_workload: CpuWorkloadKind::TightLoop,
             running: false,
             running_flag: Arc::new(AtomicBool::new(false)),
             progress: Arc::new(Mutex::new(0.0)),
             result: Arc::new(Mutex::new(None)),
-            matrix_config: MatrixStressConfig::default(),
-            compression_config: CompressionStressConfig::default(),
-            ram_config: RamStressConfig::default(),
-            tightloop_config: TightLoopStressConfig::default(),
+            matrix_config: MatrixStressConfig::from_config(config),
+            compression_config: CompressionStressConfig::from_config(config),
+            ram_config: RamStressConfig::from_config(config),
+            tightloop_config: TightLoopStressConfig::from_config(config),
             stop_flag: None,
             log_path: Arc::new(Mutex::new(None)),
         }
     }
-}
-
-impl SelectableStress {
     pub fn ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, dev_mode: bool) {
         ui.heading("Custom/Selectable Stress Test");
         ui.add_space(10.0);
@@ -194,19 +191,19 @@ impl SelectableStress {
                     // Run workload
                     let _res = match kind {
                         CpuWorkloadKind::MatrixMultiplication => {
-                            let stress = MatrixStress { config: matrix_config.clone() };
+                            let stress = matrix_stress::MatrixStress { config: matrix_config.clone() };
                             stress.run_with_counts(stop_flag.clone(), &mut op_counts)
                         }
                         CpuWorkloadKind::Compression => {
-                            let stress = CompressionStress { config: compression_config.clone() };
+                            let stress = compression_stress::CompressionStress { config: compression_config.clone() };
                             stress.run_with_counts(stop_flag.clone(), &mut op_counts)
                         }
                         CpuWorkloadKind::TightLoop => {
-                            let stress = TightLoopStress { config: tightloop_config.clone() };
+                            let stress = tightloop_stress::TightLoopStress { config: tightloop_config.clone() };
                             stress.run_with_counts(stop_flag.clone(), &mut op_counts)
                         }
                         CpuWorkloadKind::RandomMemoryAccess => {
-                            let stress = RamStress { config: ram_config.clone() };
+                            let stress = ram_stress::RamStress { config: ram_config.clone() };
                             stress.run_with_counts(stop_flag.clone(), &mut op_counts)
                         }
                     };

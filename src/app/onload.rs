@@ -1,5 +1,6 @@
 use eframe::egui;
 use std::time::{Duration, Instant};
+use log::info;
 // use crate::app::SystemMonitorApp;
 
 #[cfg(windows)]
@@ -73,18 +74,18 @@ impl eframe::App for OnLoadApp {
         // If space is pressed or held, record the first detection time
         if (space_down || space_pressed) && self.space_detected_time.is_none() {
             self.space_detected_time = Some(now);
-            println!("[DEV] First space bar detected, starting 5s grace period");
+            info!("[DEV] First space bar detected, starting 5s grace period");
         }
         if space_down {
             if self.space_held_since.is_none() {
                 self.space_held_since = Some(now);
-                println!("[DEV] Space bar pressed (down)");
+                info!("[DEV] Space bar pressed (down)");
             }
             if let Some(start) = self.space_held_since {
                 if now.duration_since(start) > Duration::from_secs(1) && !self.dev_mode {
                     self.dev_mode = true;
                     self.dev_mode_activated_time = Some(now);
-                    println!("[DEV] Dev mode activated via space bar (held)");
+                    info!("[DEV] Dev mode activated via space bar (held)");
                     self.space_press_times.clear();
                 }
             }
@@ -98,11 +99,11 @@ impl eframe::App for OnLoadApp {
         if space_pressed {
             self.space_press_times.push(now);
             self.space_press_times.retain(|&t| now.duration_since(t) <= Duration::from_secs(3));
-            println!("[DEV] Space bar pressed (pressed), count in window: {}", self.space_press_times.len());
+            info!("[DEV] Space bar pressed (pressed), count in window: {}", self.space_press_times.len());
             if self.space_press_times.len() >= 3 && !self.dev_mode {
                 self.dev_mode = true;
                 self.dev_mode_activated_time = Some(now);
-                println!("[DEV] Dev mode activated via space bar (pressed 3x)");
+                info!("[DEV] Dev mode activated via space bar (pressed 3x)");
                 self.space_press_times.clear();
             }
         }

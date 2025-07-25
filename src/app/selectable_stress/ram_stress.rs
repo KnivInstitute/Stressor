@@ -10,12 +10,12 @@ pub struct RamStressConfig {
     pub threads: usize,
 }
 
-impl Default for RamStressConfig {
-    fn default() -> Self {
+impl RamStressConfig {
+    pub fn from_config(config: &crate::app::config::Config) -> Self {
         Self {
-            buffer_size: 64 * 1024 * 1024, // 64MB
-            duration_secs: 10,
-            threads: num_cpus::get(),
+            buffer_size: config.ram_buffer_size,
+            duration_secs: config.ram_duration_secs,
+            threads: config.ram_threads,
         }
     }
 }
@@ -25,6 +25,11 @@ pub struct RamStress {
 }
 
 impl RamStress {
+    pub fn from_config(config: &crate::app::config::Config) -> Self {
+        Self {
+            config: RamStressConfig::from_config(config),
+        }
+    }
     pub fn run_with_counts(&self, stop_flag: Arc<AtomicBool>, op_counts: &mut [u64]) -> u64 {
         let mut handles = Vec::new();
         let results = Arc::new(std::sync::Mutex::new(vec![0u64; self.config.threads]));
