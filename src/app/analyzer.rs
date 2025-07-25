@@ -1,5 +1,4 @@
 use eframe::egui;
-use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use chrono::{NaiveDateTime, Datelike, Timelike};
@@ -15,6 +14,8 @@ pub enum AnalyzerTab {
 pub struct Analyzer {
     pub analyzer_tab: AnalyzerTab,
     pub selected_log_index: Option<usize>,
+    pub dev_mode: bool,
+    pub marked_for_delete: Option<(usize, std::time::Instant)>,
 }
 
 impl Default for Analyzer {
@@ -22,6 +23,28 @@ impl Default for Analyzer {
         Self {
             analyzer_tab: AnalyzerTab::StorageStress,
             selected_log_index: None,
+            dev_mode: false,
+            marked_for_delete: None,
+        }
+    }
+}
+
+impl Analyzer {
+    pub fn with_dev_mode(dev_mode: bool) -> Self {
+        Self {
+            analyzer_tab: AnalyzerTab::StorageStress,
+            selected_log_index: None,
+            dev_mode,
+            marked_for_delete: None,
+        }
+    }
+
+    pub fn log_dir(&self) -> std::path::PathBuf {
+        if self.dev_mode {
+            std::path::PathBuf::from("log")
+        } else {
+            std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join("log")
         }
     }
 }
@@ -175,7 +198,7 @@ fn parse_selectable_stress_filename(name: &str) -> Option<(String, String, Strin
     }
     let typ = parts[0];
     let date_str = parts[1..3].join("_");
-    let params = parts[3..].join("_");
+    let _params = parts[3..].join("_");
     let dt = chrono::NaiveDateTime::parse_from_str(&date_str, "%Y%m%d_%H%M%S").ok()?;
     let formatted = format!(
         "{} {}, {}: {:02}:{:02}:{:02}",
@@ -233,22 +256,26 @@ impl Analyzer {
             if ui.selectable_label(self.analyzer_tab == AnalyzerTab::StorageStress, "Storage Stress").clicked() {
                 self.analyzer_tab = AnalyzerTab::StorageStress;
                 self.selected_log_index = None;
+                self.marked_for_delete = None;
             }
             if ui.selectable_label(self.analyzer_tab == AnalyzerTab::CpuStress, "CPU Stress").clicked() {
                 self.analyzer_tab = AnalyzerTab::CpuStress;
                 self.selected_log_index = None;
+                self.marked_for_delete = None;
             }
             if ui.selectable_label(self.analyzer_tab == AnalyzerTab::SelectableStress, "Selectable Stress").clicked() {
                 self.analyzer_tab = AnalyzerTab::SelectableStress;
                 self.selected_log_index = None;
+                self.marked_for_delete = None;
             }
         });
         ui.separator();
         // List available logs for the selected test type
+        let log_dir = self.log_dir();
         let mut log_files = vec![];
         match self.analyzer_tab {
             AnalyzerTab::StorageStress => {
-                if let Ok(entries) = fs::read_dir("log") {
+                if let Ok(entries) = std::fs::read_dir(&log_dir) {
                     for entry in entries.flatten() {
                         let path = entry.path();
                         if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
@@ -258,10 +285,14 @@ impl Analyzer {
                         }
                     }
                 }
-                log_files.sort_by(|a, b| b.cmp(a));
+                log_files.sort_by(|a, b| {
+                    let adt = parse_storage_stress_filename(a).and_then(|(_, date, _, _, _)| chrono::NaiveDateTime::parse_from_str(&date, "%Y%m%d_%H%M%S").ok());
+                    let bdt = parse_storage_stress_filename(b).and_then(|(_, date, _, _, _)| chrono::NaiveDateTime::parse_from_str(&date, "%Y%m%d_%H%M%S").ok());
+                    bdt.cmp(&adt)
+                });
             },
             AnalyzerTab::CpuStress => {
-                if let Ok(entries) = fs::read_dir("log") {
+                if let Ok(entries) = std::fs::read_dir(&log_dir) {
                     for entry in entries.flatten() {
                         let path = entry.path();
                         if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
@@ -271,10 +302,14 @@ impl Analyzer {
                         }
                     }
                 }
-                log_files.sort_by(|a, b| b.cmp(a));
+                log_files.sort_by(|a, b| {
+                    let adt = parse_cpu_stress_filename(a).and_then(|(_, date, _, _, _)| chrono::NaiveDateTime::parse_from_str(&date, "%Y%m%d_%H%M%S").ok());
+                    let bdt = parse_cpu_stress_filename(b).and_then(|(_, date, _, _, _)| chrono::NaiveDateTime::parse_from_str(&date, "%Y%m%d_%H%M%S").ok());
+                    bdt.cmp(&adt)
+                });
             },
             AnalyzerTab::SelectableStress => {
-                if let Ok(entries) = fs::read_dir("log") {
+                if let Ok(entries) = std::fs::read_dir(&log_dir) {
                     for entry in entries.flatten() {
                         let path = entry.path();
                         if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
@@ -284,7 +319,11 @@ impl Analyzer {
                         }
                     }
                 }
-                log_files.sort_by(|a, b| b.cmp(a));
+                log_files.sort_by(|a, b| {
+                    let adt = parse_selectable_stress_filename(a).and_then(|(_, date, _, _, _)| chrono::NaiveDateTime::parse_from_str(&date, "%Y%m%d_%H%M%S").ok());
+                    let bdt = parse_selectable_stress_filename(b).and_then(|(_, date, _, _, _)| chrono::NaiveDateTime::parse_from_str(&date, "%Y%m%d_%H%M%S").ok());
+                    bdt.cmp(&adt)
+                });
             },
         }
         ui.label("Select a test to analyze:");
@@ -292,6 +331,16 @@ impl Analyzer {
             ui.heading("Date & Time");
             ui.heading("Type/Hash");
             ui.end_row();
+            let mut to_delete: Option<usize> = None;
+            let now = std::time::Instant::now();
+            if let Some((idx, mark_time)) = self.marked_for_delete {
+                if now.duration_since(mark_time) > std::time::Duration::from_secs(10) {
+                    if self.dev_mode {
+                        println!("[DEV] Expired delete mark for log index {} after 10s", idx);
+                    }
+                    self.marked_for_delete = None;
+                }
+            }
             for (i, log) in log_files.iter().enumerate() {
                 let parsed = match self.analyzer_tab {
                     AnalyzerTab::StorageStress => parse_storage_stress_filename(log),
@@ -299,13 +348,65 @@ impl Analyzer {
                     AnalyzerTab::SelectableStress => parse_selectable_stress_filename(log),
                 };
                 if let Some((formatted, _date_str, typ, _, _)) = parsed {
-                    let selected = self.selected_log_index == Some(i);
-                    if ui.selectable_label(selected, &formatted).clicked() {
-                        self.selected_log_index = Some(i);
+                    let _selected = self.selected_log_index == Some(i);
+                    let marked = self.marked_for_delete.map(|(idx, _)| idx) == Some(i);
+                    if marked {
+                        egui::Frame::NONE
+                            .fill(egui::Color32::RED)
+                            .show(ui, |ui| {
+                                let response = ui.add_sized([
+                                    ui.available_width() * 0.6,
+                                    24.0
+                                ], egui::Label::new(&formatted).sense(egui::Sense::click_and_drag()));
+                                if response.clicked_by(egui::PointerButton::Primary) {
+                                    if self.dev_mode {
+                                        println!("[DEV] Selected log index {} (left click) while marked for delete", i);
+                                    }
+                                    self.selected_log_index = Some(i);
+                                    self.marked_for_delete = None;
+                                } else if response.clicked_by(egui::PointerButton::Secondary) {
+                                    if self.dev_mode {
+                                        println!("[DEV] Deleting log index {}: {}", i, log);
+                                    }
+                                    let path = log_dir.join(log);
+                                    let _ = std::fs::remove_file(&path);
+                                    to_delete = Some(i);
+                                    self.marked_for_delete = None;
+                                    if self.selected_log_index == Some(i) {
+                                        self.selected_log_index = None;
+                                    }
+                                }
+                                ui.label(format!("({})", typ));
+                            });
+                        ui.end_row();
+                    } else {
+                        let response = ui.add_sized([
+                            ui.available_width() * 0.6,
+                            24.0
+                        ], egui::Label::new(&formatted)
+                            .sense(egui::Sense::click_and_drag()));
+                        if response.clicked_by(egui::PointerButton::Primary) {
+                            if self.dev_mode {
+                                println!("[DEV] Selected log index {} (left click)", i);
+                            }
+                            self.selected_log_index = Some(i);
+                            self.marked_for_delete = None;
+                        } else if response.clicked_by(egui::PointerButton::Secondary) {
+                            if self.dev_mode {
+                                println!("[DEV] Marked log index {} for delete (right click)", i);
+                            }
+                            self.marked_for_delete = Some((i, std::time::Instant::now()));
+                        }
+                        ui.label(format!("({})", typ));
+                        ui.end_row();
                     }
-                    ui.label(format!("({})", typ));
-                    ui.end_row();
                 }
+            }
+            if let Some(idx) = to_delete {
+                if self.dev_mode {
+                    println!("[DEV] Removed log index {} from list after deletion", idx);
+                }
+                log_files.remove(idx);
             }
         });
         ui.separator();
@@ -321,7 +422,7 @@ impl Analyzer {
                                 dur.map(|d| d.to_string()).unwrap_or_else(|| "Unknown".to_string())
                             ));
                         }
-                        let path = format!("log/{}", log);
+                        let path = format!("{}/{}", log_dir.to_string_lossy(), log);
                         if let Some((_write_speeds, _read_speeds, avg_write, avg_read, max_write, max_read, min_write, min_read, std_write, std_read)) = analyze_storage_stress_csv(&path) {
                             ui.label("Storage Stress Test Analysis:");
                             egui::Grid::new("analysis_table").striped(true).show(ui, |ui| {
@@ -353,7 +454,7 @@ impl Analyzer {
                                 dur.map(|d| d.to_string()).unwrap_or_else(|| "Unknown".to_string())
                             ));
                         }
-                        let path = format!("log/{}", log);
+                        let path = format!("{}/{}", log_dir.to_string_lossy(), log);
                         if let Some((thread_rates, _all_rates, avg, max, min, stddev)) = analyze_cpu_stress_csv(&path) {
                             ui.label("CPU Stress Test Analysis:");
                             egui::Grid::new("cpu_analysis_table").striped(true).show(ui, |ui| {
@@ -388,7 +489,7 @@ impl Analyzer {
                         }
                     },
                     AnalyzerTab::SelectableStress => {
-                        if let Some((workload, params, total_ops, thread_ops)) = analyze_selectable_stress_csv(&format!("log/{}", log)) {
+                        if let Some((workload, params, total_ops, thread_ops)) = analyze_selectable_stress_csv(&format!("{}/{}", log_dir.to_string_lossy(), log)) {
                             ui.label(format!("Workload: {}", workload));
                             ui.label(format!("Params: {}", params));
                             ui.label(format!("Total Operations: {}", total_ops));

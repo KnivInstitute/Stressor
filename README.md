@@ -49,6 +49,7 @@
 
 1. **Launch Stressor**
    - Double-click the EXE
+   - On the loading screen, if you wish to engage developer mode (for IDE testing), spam your spacebar
 2. **Monitor System**
    - The main window shows live CPU, RAM, and storage stats. Here, you can verify devices that will be stressed
 3. **Run a Stress Test**
@@ -58,6 +59,7 @@
 4. **Analyze Results**
    - Use the "Analyze" feature to review the last or any saved test.
    - Results are shown in a user-friendly format.
+   - If you wish to delete a result, you can right click twice
 
 ---
 

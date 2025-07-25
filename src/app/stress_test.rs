@@ -21,19 +21,19 @@ impl Default for StressTest {
 }
 
 impl StressTest {
-    pub fn ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    pub fn ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, dev_mode: bool) {
         ui.heading("Stress Tests");
         ui.separator();
         egui::CollapsingHeader::new("CPU Stress Test").default_open(true).show(ui, |ui| {
-            self.cpu_stress.ui(ctx, ui);
+            self.cpu_stress.ui(ctx, ui, dev_mode);
         });
         ui.separator();
         egui::CollapsingHeader::new("Storage Stress Test").default_open(true).show(ui, |ui| {
-            self.storage_stress.ui(ctx, ui);
+            self.storage_stress.ui(ctx, ui, dev_mode);
         });
         ui.separator();
         egui::CollapsingHeader::new("Custom/Selectable Stress Test").default_open(true).show(ui, |ui| {
-            self.selectable_stress.ui(ctx, ui);
+            self.selectable_stress.ui(ctx, ui, dev_mode);
         });
     }
 }

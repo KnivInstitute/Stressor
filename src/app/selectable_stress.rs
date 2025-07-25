@@ -16,7 +16,7 @@ use compression_stress::{CompressionStress, CompressionStressConfig};
 use ram_stress::{RamStress, RamStressConfig};
 use tightloop_stress::{TightLoopStress, TightLoopStressConfig};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CpuWorkloadKind {
     TightLoop,
     MatrixMultiplication,
@@ -46,6 +46,7 @@ impl CpuWorkloadKind {
 pub struct SelectableStress {
     pub selected_cpu_workload: CpuWorkloadKind,
     pub running: bool,
+    pub running_flag: Arc<AtomicBool>,
     pub progress: Arc<Mutex<f32>>,
     pub result: Arc<Mutex<Option<u64>>>,
     pub matrix_config: MatrixStressConfig,
@@ -61,6 +62,7 @@ impl Default for SelectableStress {
         Self {
             selected_cpu_workload: CpuWorkloadKind::TightLoop,
             running: false,
+            running_flag: Arc::new(AtomicBool::new(false)),
             progress: Arc::new(Mutex::new(0.0)),
             result: Arc::new(Mutex::new(None)),
             matrix_config: MatrixStressConfig::default(),
@@ -74,7 +76,7 @@ impl Default for SelectableStress {
 }
 
 impl SelectableStress {
-    pub fn ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    pub fn ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, dev_mode: bool) {
         ui.heading("Custom/Selectable Stress Test");
         ui.add_space(10.0);
         ui.label("Choose a CPU workload:");
@@ -131,6 +133,10 @@ impl SelectableStress {
             }
         }
         ui.add_space(10.0);
+        // Check if the background thread finished
+        if self.running && !self.running_flag.load(Ordering::SeqCst) {
+            self.running = false;
+        }
         if !self.running {
             if ui.button("Start").clicked() {
                 *self.result.lock().unwrap() = None;
@@ -138,7 +144,9 @@ impl SelectableStress {
                 *self.log_path.lock().unwrap() = None;
                 let stop_flag = Arc::new(AtomicBool::new(false));
                 self.stop_flag = Some(stop_flag.clone());
+                self.running_flag.store(true, Ordering::SeqCst);
                 self.running = true;
+                let _running_flag = self.running_flag.clone();
                 let kind = self.selected_cpu_workload;
                 let matrix_config = self.matrix_config.clone();
                 let matrix_config_for_csv = self.matrix_config.clone();
@@ -152,6 +160,11 @@ impl SelectableStress {
                 let progress = self.progress.clone();
                 let result = self.result.clone();
                 let log_path = self.log_path.clone();
+                let stop_flag = stop_flag.clone();
+                let dev_mode = dev_mode;
+                if dev_mode {
+                    println!("[DEV] Starting selectable stress test: kind={:?}", kind);
+                }
                 thread::spawn(move || {
                     let duration = match kind {
                         CpuWorkloadKind::MatrixMultiplication => matrix_config.duration_secs,
@@ -204,11 +217,18 @@ impl SelectableStress {
                     *progress.lock().unwrap() = 1.0;
                     // Save CSV
                     let date = Local::now().format("%Y%m%d_%H%M%S");
+                    let log_dir = if dev_mode {
+                        std::path::PathBuf::from("log")
+                    } else {
+                        std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).unwrap_or_else(|| std::path::PathBuf::from("."))
+                            .join("log")
+                    };
+                    let _ = std::fs::create_dir_all(&log_dir);
                     let filename = match kind {
-                        CpuWorkloadKind::MatrixMultiplication => format!("log/selectable_matrix_{}_size{}_threads{}_dur{}.csv", date, matrix_config_for_csv.matrix_size, matrix_config_for_csv.threads, matrix_config_for_csv.duration_secs),
-                        CpuWorkloadKind::Compression => format!("log/selectable_compression_{}_block{}_threads{}_dur{}.csv", date, compression_config_for_csv.block_size, compression_config_for_csv.threads, compression_config_for_csv.duration_secs),
-                        CpuWorkloadKind::TightLoop => format!("log/selectable_tightloop_{}_threads{}_dur{}.csv", date, tightloop_config.threads, tightloop_config.duration_secs),
-                        CpuWorkloadKind::RandomMemoryAccess => format!("log/selectable_ram_{}_buf{}_threads{}_dur{}.csv", date, ram_config.buffer_size, ram_config.threads, ram_config.duration_secs),
+                        CpuWorkloadKind::MatrixMultiplication => log_dir.join(format!("selectable_matrix_{}_size{}_threads{}_dur{}.csv", date, matrix_config_for_csv.matrix_size, matrix_config_for_csv.threads, matrix_config_for_csv.duration_secs)),
+                        CpuWorkloadKind::Compression => log_dir.join(format!("selectable_compression_{}_block{}_threads{}_dur{}.csv", date, compression_config_for_csv.block_size, compression_config_for_csv.threads, compression_config_for_csv.duration_secs)),
+                        CpuWorkloadKind::TightLoop => log_dir.join(format!("selectable_tightloop_{}_threads{}_dur{}.csv", date, tightloop_config.threads, tightloop_config.duration_secs)),
+                        CpuWorkloadKind::RandomMemoryAccess => log_dir.join(format!("selectable_ram_{}_buf{}_threads{}_dur{}.csv", date, ram_config.buffer_size, ram_config.threads, ram_config.duration_secs)),
                     };
                     let mut file = OpenOptions::new().create(true).append(true).open(&filename).unwrap();
                     writeln!(file, "timestamp,workload,params,total_ops,thread,thread_ops").unwrap();
@@ -229,11 +249,15 @@ impl SelectableStress {
                         ).replace('\t', ",");
                         writeln!(file, "{}", line).unwrap();
                     }
-                    *log_path.lock().unwrap() = Some(filename);
+                    *log_path.lock().unwrap() = Some(filename.to_string_lossy().to_string());
+                    if dev_mode {
+                        println!("[DEV] Created log file: {}", filename.display());
+                    }
                     ctx.request_repaint();
                 });
             }
-        } else {
+        }
+        else {
             if ui.button("Stop").clicked() {
                 if let Some(flag) = &self.stop_flag {
                     flag.store(true, Ordering::SeqCst);

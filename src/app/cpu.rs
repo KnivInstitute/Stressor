@@ -2,6 +2,60 @@ use eframe::egui::{self, Color32, Stroke};
 use sysinfo::{SystemExt, CpuExt};
 use crate::app::SystemMonitorApp;
 
+#[cfg(windows)]
+fn try_read_cpu_temperature() -> Option<u32> {
+    use std::ptr::null_mut;
+    use winapi::um::fileapi::{CreateFileW, OPEN_EXISTING};
+    use winapi::um::handleapi::CloseHandle;
+    use winapi::um::winnt::{GENERIC_READ, GENERIC_WRITE, FILE_ATTRIBUTE_NORMAL};
+    use winapi::um::ioapiset::DeviceIoControl;
+    use winapi::shared::minwindef::{DWORD, ULONG, FALSE};
+    use winapi::shared::ntdef::HANDLE;
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    // These must match the driver
+    const FILE_DEVICE_UNKNOWN: DWORD = 0x00000022;
+    const METHOD_BUFFERED: DWORD = 0;
+    const FILE_READ_DATA: DWORD = 0x0001;
+    const FILE_WRITE_DATA: DWORD = 0x0002;
+    const IOCTL_GET_CPU_TEMP: DWORD =
+        FILE_DEVICE_UNKNOWN << 16 | (FILE_READ_DATA | FILE_WRITE_DATA) << 14 | 0x800 << 2 | METHOD_BUFFERED;
+
+    let device_name: Vec<u16> = OsStr::new(r"\\.\CpuTempDrv").encode_wide().chain(Some(0)).collect();
+    unsafe {
+        let h_device: HANDLE = CreateFileW(
+            device_name.as_ptr(),
+            GENERIC_READ | GENERIC_WRITE,
+            0,
+            null_mut(),
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            null_mut(),
+        );
+        if h_device == winapi::um::handleapi::INVALID_HANDLE_VALUE {
+            return None;
+        }
+        let mut temp: ULONG = 0;
+        let mut bytes_returned: DWORD = 0;
+        let success = DeviceIoControl(
+            h_device,
+            IOCTL_GET_CPU_TEMP,
+            null_mut(),
+            0,
+            &mut temp as *mut ULONG as *mut _,
+            std::mem::size_of::<ULONG>() as DWORD,
+            &mut bytes_returned,
+            null_mut(),
+        );
+        CloseHandle(h_device);
+        if success == FALSE || bytes_returned < std::mem::size_of::<ULONG>() as u32 {
+            return None;
+        }
+        Some(temp as u32)
+    }
+}
+
 pub fn update_cpu_data(app: &mut SystemMonitorApp) {
     let now = std::time::Instant::now();
     if now.duration_since(app.last_update) >= std::time::Duration::from_millis(500) {
@@ -45,12 +99,15 @@ pub fn update_cpu_data(app: &mut SystemMonitorApp) {
                     }
                 }
             }
+            // Try to get temperature from driver
+            app.cpu_temperature_celsius = try_read_cpu_temperature();
         }
         #[cfg(not(windows))]
         {
             app.current_cpu_freq = app.sys.cpus().get(0)
                 .map(|cpu| cpu.frequency())
                 .unwrap_or(0);
+            app.cpu_temperature_celsius = None;
         }
         app.last_update = now;
     }
@@ -79,6 +136,15 @@ pub fn ui_cpu_info(app: &mut SystemMonitorApp, ui: &mut egui::Ui) {
                     )).color(egui::Color32::YELLOW).strong());
                 } else {
                     ui.colored_label(egui::Color32::RED, "CPU frequency unavailable");
+                }
+                // Show temperature if available (Windows only)
+                #[cfg(windows)]
+                {
+                    if let Some(temp) = app.cpu_temperature_celsius {
+                        ui.label(egui::RichText::new(format!("🌡️ CPU Temperature: {} °C", temp)).color(egui::Color32::LIGHT_RED).strong());
+                    } else {
+                        ui.colored_label(egui::Color32::RED, "CPU temperature unavailable");
+                    }
                 }
                 // Only show the speedometer if clockspeed is updating
                 if app.current_cpu_freq != app.max_cpu_freq && app.current_cpu_freq != 0 {

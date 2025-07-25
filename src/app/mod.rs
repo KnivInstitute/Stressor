@@ -36,10 +36,18 @@ pub struct SystemMonitorApp {
     #[cfg(windows)]
     pub wmi_con: Option<wmi::WMIConnection>,
     pub analyzer: Analyzer,
+    pub cpu_temperature_celsius: Option<u32>,
+    pub dev_mode: bool,
 }
 
 impl Default for SystemMonitorApp {
     fn default() -> Self {
+        Self::with_dev_mode(false)
+    }
+}
+
+impl SystemMonitorApp {
+    pub fn with_dev_mode(dev_mode: bool) -> Self {
         let mut sys = System::new_all();
         sys.refresh_all();
         let max_freq = sys.cpus().iter()
@@ -64,12 +72,11 @@ impl Default for SystemMonitorApp {
             current_cpu_freq: 0,
             #[cfg(windows)]
             wmi_con,
-            analyzer: Analyzer::default(),
+            analyzer: Analyzer::with_dev_mode(dev_mode),
+            cpu_temperature_celsius: None,
+            dev_mode,
         }
     }
-}
-
-impl SystemMonitorApp {
     pub fn update_system_data(&mut self) {
         cpu::update_cpu_data(self);
         memory::update_memory_data(self);
@@ -108,24 +115,10 @@ impl eframe::App for SystemMonitorApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             match self.current_tab {
                 Tab::SystemInfo => self.ui_system_info(ui),
-                Tab::Stress => self.stress_test.ui(ctx, ui),
+                Tab::Stress => self.stress_test.ui(ctx, ui, self.dev_mode),
                 Tab::Analyzers => self.analyzer.ui(ctx, ui),
             }
         });
         ctx.request_repaint_after(Duration::from_millis(500));
     }
 }
-
-pub fn run_app_with(app: Box<dyn eframe::App>, is_splash: bool) -> eframe::Result<()> {
-    let mut options = eframe::NativeOptions::default();
-    if is_splash {
-        options.viewport.inner_size = Some([800.0 * 0.91, 600.0 * 0.77].into()); // ~30% smaller area
-    } else {
-        options.viewport.inner_size = Some([800.0 * 1.3, 600.0 * 1.1].into());
-    }
-    eframe::run_native(
-        "System Monitor & Stress Tool",
-        options,
-        Box::new(|_cc| Ok(app)),
-    )
-} 

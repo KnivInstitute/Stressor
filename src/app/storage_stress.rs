@@ -42,7 +42,7 @@ impl Default for StorageStress {
 }
 
 impl StorageStress {
-    pub fn ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    pub fn ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, dev_mode: bool) {
         ui.heading("Storage Stress Test");
         ui.add_space(10.0);
         ui.label("This test will write and read a large file to measure disk throughput (MB/s).");
@@ -84,11 +84,30 @@ impl StorageStress {
                 current_read_speed.store(0.0, Ordering::SeqCst);
                 avg_write.store(0.0, Ordering::SeqCst);
                 avg_read.store(0.0, Ordering::SeqCst);
+                let dev_mode = dev_mode;
+                if dev_mode {
+                    println!("[DEV] Starting storage stress test: buffer_mb={}, duration_secs={}", buffer_mb, duration_secs);
+                }
                 thread::spawn(move || {
                     let mut rng = thread_rng();
                     let hash: u16 = rng.gen_range(1000..9999);
                     let date = Local::now().format("%Y%m%d_%H%M%S");
-                    let log_file_name = format!("log/storage_stress_{}_{}_buf{}_dur{}.csv", hash, date, buffer_mb, duration_secs);
+                    let _exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf()));
+                    let log_dir = if dev_mode {
+                        std::path::PathBuf::from("log")
+                    } else {
+                        std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).unwrap_or_else(|| std::path::PathBuf::from("."))
+                            .join("log")
+                    };
+                    let _ = std::fs::create_dir_all(&log_dir);
+                    let log_file_name = log_dir.join(format!("storage_stress_{}_{}_buf{}_dur{}.csv", hash, date, buffer_mb, duration_secs));
+                    if dev_mode {
+                        println!("[DEV] Created log file: {}", log_file_name.display());
+                    }
+                    // Ensure log directory exists
+                    if let Some(parent) = std::path::Path::new(&log_file_name).parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
                     let mut log_file = OpenOptions::new().create(true).append(true).open(&log_file_name).unwrap();
                     {
                         let mut log_path_guard = log_path.lock().unwrap();
@@ -172,6 +191,9 @@ impl StorageStress {
                     std::fs::remove_file(test_file_path).ok();
                     running.store(false, Ordering::SeqCst);
                     ctx.request_repaint();
+                    if dev_mode {
+                        println!("[DEV] Storage stress test thread finished");
+                    }
                 });
             }
         }

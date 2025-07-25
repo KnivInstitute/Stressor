@@ -15,18 +15,6 @@ use num_cpus;
 use sysinfo::{System, SystemExt, CpuExt};
 
 #[cfg(windows)]
-fn set_thread_priority_high() {
-    use winapi::um::processthreadsapi::{GetCurrentThread, SetThreadPriority};
-    use winapi::um::winbase::THREAD_PRIORITY_HIGHEST;
-    unsafe {
-        let handle = GetCurrentThread();
-        SetThreadPriority(handle, THREAD_PRIORITY_HIGHEST as i32);
-    }
-}
-#[cfg(not(windows))]
-fn set_thread_priority_high() {}
-
-#[cfg(windows)]
 fn set_thread_priority_for_mode(max_stress: bool) {
     use winapi::um::processthreadsapi::{GetCurrentThread, SetThreadPriority};
     use winapi::um::winbase::{THREAD_PRIORITY_HIGHEST, THREAD_PRIORITY_NORMAL};
@@ -72,7 +60,7 @@ impl Default for CpuStress {
 }
 
 impl CpuStress {
-    pub fn ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    pub fn ui(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, dev_mode: bool) {
         ui.heading("CPU Stress Test");
         ui.add_space(10.0);
         ui.label("This test will run a tight loop on all logical CPU threads to stress the CPU and measure how many iterations it can perform in a cycle. At maximum intensity, it will attempt to use 100% of all threads.");
@@ -109,6 +97,7 @@ impl CpuStress {
             let cpu_usage_history = self.cpu_usage_history.clone();
             let responsiveness_mode = *self.responsiveness_mode.lock().unwrap();
             let ctx = ctx.clone();
+            let dev_mode = dev_mode;
             if running.load(Ordering::SeqCst) {
                 running.store(false, Ordering::SeqCst);
             } else {
@@ -123,11 +112,21 @@ impl CpuStress {
                 let mut rng = thread_rng();
                 let hash: u16 = rng.gen_range(1000..9999);
                 let date = Local::now().format("%Y%m%d_%H%M%S");
-                let log_file_name = format!("log/cpu_stress_{}_{}_int{}_dur{}.csv", hash, date, intensity, cycle_secs);
+                let log_dir = if dev_mode {
+                    std::path::PathBuf::from("log")
+                } else {
+                    std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).unwrap_or_else(|| std::path::PathBuf::from("."))
+                        .join("log")
+                };
+                let _ = std::fs::create_dir_all(&log_dir);
+                let log_file_name = log_dir.join(format!("cpu_stress_{}_{}_int{}_dur{}.csv", hash, date, intensity, cycle_secs));
                 let log_path_val = PathBuf::from(&log_file_name);
                 {
                     let mut log_path_guard = log_path.lock().unwrap();
                     *log_path_guard = Some(log_path_val.clone());
+                }
+                if dev_mode {
+                    println!("[DEV] Starting CPU stress test: intensity={}, cycle_secs={}", intensity, cycle_secs);
                 }
                 thread::spawn(move || {
                     let mut log_file = OpenOptions::new().create(true).append(true).open(&log_file_name).unwrap();
@@ -209,6 +208,9 @@ impl CpuStress {
                     last_score.store(score, Ordering::SeqCst);
                     live_rate.store(0.0, Ordering::SeqCst);
                     ctx.request_repaint();
+                    if dev_mode {
+                        println!("[DEV] CPU stress test thread finished");
+                    }
                 });
             }
         }

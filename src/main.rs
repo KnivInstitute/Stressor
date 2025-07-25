@@ -1,39 +1,27 @@
 mod app;
 use crate::app::onload::OnLoadApp;
 use crate::app::SystemMonitorApp;
-use eframe::egui;
 
 enum AppState {
     Splash(OnLoadApp),
     Main(SystemMonitorApp),
 }
 
-struct WrapperApp {
+struct RootApp {
     state: AppState,
-    switched: bool,
 }
 
-impl WrapperApp {
-    fn new() -> Self {
-        Self {
-            state: AppState::Splash(OnLoadApp::default()),
-            switched: false,
-        }
-    }
-}
-
-impl eframe::App for WrapperApp {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+impl eframe::App for RootApp {
+    fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
         match &mut self.state {
             AppState::Splash(splash) => {
                 splash.update(ctx, frame);
                 if splash.done {
-                    self.state = AppState::Main(SystemMonitorApp::default());
-                    self.switched = true;
+                    let dev_mode = splash.dev_mode;
+                    self.state = AppState::Main(SystemMonitorApp::with_dev_mode(dev_mode));
                 }
             }
             AppState::Main(main_app) => {
-                // Window resizing not supported in this eframe version
                 main_app.update(ctx, frame);
             }
         }
@@ -41,5 +29,9 @@ impl eframe::App for WrapperApp {
 }
 
 fn main() -> eframe::Result<()> {
-    app::run_app_with(Box::new(WrapperApp::new()), true)
+    eframe::run_native(
+        "Stressor",
+        eframe::NativeOptions::default(),
+        Box::new(|_cc| Ok(Box::new(RootApp { state: AppState::Splash(OnLoadApp::default()) }))),
+    )
 }
