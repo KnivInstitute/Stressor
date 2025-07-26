@@ -64,7 +64,7 @@ impl SystemMonitorApp {
             let con = com.as_ref().and_then(|c| wmi::WMIConnection::new(c.clone()).ok());
             (com, con)
         };
-        let config = Config::load();
+        let config = Config::load(dev_mode);
         Self {
             sys,
             current_tab: Tab::SystemInfo,

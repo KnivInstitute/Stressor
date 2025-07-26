@@ -4,10 +4,10 @@
 
 ---
 
-## Features (to build and already built aren't differentiated until v1.0)
+## Features
 
 - **Real-Time System Monitoring**
-  - Live CPU usage graph and speedometer (MHz)
+  - Live CPU usage graph
   - Live RAM usage bar and history graph
   - Storage usage visualization for all drives
 - **CPU Stress Test**
@@ -48,29 +48,34 @@
 ## Running from Installer
 
 1. **Launch Stressor_Installer.exe** and interactively install
-   - You will need administrator access 
+   - You will need administrator access
    - This is just like installing any other application
    - The installer will upload Stressor into your Program Files (x64)
    - It will also create registry keys and make uninstalling just as easy
    - It will also create a desktop shortcut
-   
 2. **Launch Stressor as administrator**
    - Double-click the EXE shortcut on your desktop, or search for Stressor via start menu
    - You MUST launch stressor as an administrator or it will not be able to log and start thread testing
    - The application load/splash screen will start. If you wish to engage developer mode at this time (not recommended for end-users), spam the space bar before the progress bar ends
    - You will know you have entered developer mode when the progress bar flashes
-   ![Splash Screen](image.png)
-   ![Splash screen w/dev mode](image-1.png)
+   ![Splash Screen](imgs/image.png)
+   ![Splash screen w/dev mode](imgs/image-1.png)
 3. **Monitor System**
    - The main window shows live CPU, RAM, and storage stats. Here, you can verify devices that will be stressed
+   ![Statistic Overview ](imgs/stats.png)
 4. **Run a Stress Test**
-   - Switch to the "Stress Test" tab and click "Run".
-   - The app will stress your CPU and log the results.
-   - Storage speed analyzers will also be implemented
+   - Switch to the stress tab at the top of the window
+   - Run whichever test you would like!
+   - Currently, there is a general CPU test, storage tests, and algorithmic tests
+   ![Selectable tests](imgs/image-2.png)
+   Your system may freeze while CPU tests are being ran. This is normal!
 5. **Analyze Results**
    - Use the "Analyze" feature to review the last or any saved test.
    - Results are shown in a user-friendly format.
    - If you wish to delete a result, you can right click twice
+   ![Analyzer GUI](imgs/image-3.png)
+
+Note: Developer mode is only meant for Rust IDE development where the debug/ path exe is being ran.
 
 ---
 

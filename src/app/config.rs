@@ -1,4 +1,5 @@
 use configparser::ini::Ini;
+use std::path::PathBuf;
 
 pub struct Config {
     // GUI
@@ -25,12 +26,19 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load() -> Self {
+    pub fn load(dev_mode: bool) -> Self {
+        let (gui_path, stressors_path) = if dev_mode {
+            ("../../src/vals/gui.ini".to_string(), "../../src/vals/stressors.ini".to_string())
+        } else {
+            ("vals/gui.ini".to_string(), "vals/stressors.ini".to_string())
+        };
         let mut gui = Ini::new();
-        gui.load("src/vals/gui.ini").unwrap();
-        println!("Loaded GUI map: {:?}", gui.get_map_ref());
+        gui.load(&gui_path).unwrap();
+        if dev_mode {
+            println!("Loaded GUI map: {:?}", gui.get_map_ref());
+        }
         let mut stressors = Ini::new();
-        stressors.load("src/vals/stressors.ini").unwrap();
+        stressors.load(&stressors_path).unwrap();
         let get_f32 = |ini: &Ini, key: &str| {
             ini.getfloat("default", &key.to_lowercase())
                 .unwrap_or_else(|_| panic!("Missing or invalid float for key: {}", key))

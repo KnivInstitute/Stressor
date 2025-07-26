@@ -126,7 +126,6 @@ pub fn update_cpu_data(app: &mut SystemMonitorApp) {
             // Try to get temperature from driver
             app.cpu_temperature_celsius = try_read_cpu_temperature();
             if app.cpu_temperature_celsius.is_none() {
-                app.last_error = Some("CPU temperature unavailable".to_string());
             }
         }
         #[cfg(not(windows))]
@@ -135,7 +134,6 @@ pub fn update_cpu_data(app: &mut SystemMonitorApp) {
                 .map(|cpu| cpu.frequency())
                 .unwrap_or(0);
             app.cpu_temperature_celsius = None;
-            app.last_error = Some("CPU temperature unavailable".to_string());
         }
         app.last_update = now;
     }
