@@ -2,6 +2,7 @@ use eframe::egui;
 use crate::app::cpu_stress::CpuStress;
 use crate::app::storage_stress::StorageStress;
 use crate::app::selectable_stress::SelectableStress;
+use crate::app::config::Config;
 
 
 pub struct StressTest {
@@ -10,12 +11,12 @@ pub struct StressTest {
     pub selectable_stress: SelectableStress,
 }
 
-impl Default for StressTest {
-    fn default() -> Self {
+impl StressTest {
+    pub fn from_config(config: &Config) -> Self {
         Self {
-            cpu_stress: CpuStress::default(),
-            storage_stress: StorageStress::default(),
-            selectable_stress: SelectableStress::default(),
+            cpu_stress: CpuStress::from_config(config),
+            storage_stress: StorageStress::from_config(config),
+            selectable_stress: SelectableStress::from_config(config),
         }
     }
 }

@@ -20,7 +20,7 @@ impl SystemMonitorApp {
 
     pub fn ui_system_info(&mut self, ui: &mut egui::Ui) {
         cpu::ui_cpu_info(self, ui);
-        memory::ui_memory_info(self, ui);
+        memory::ui_memory_info(self, ui, &self.config);
         storage::ui_storage_info(self, ui);
     }
 }

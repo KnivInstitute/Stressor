@@ -12,12 +12,12 @@ pub struct CompressionStressConfig {
     pub threads: usize,
 }
 
-impl Default for CompressionStressConfig {
-    fn default() -> Self {
+impl CompressionStressConfig {
+    pub fn from_config(config: &crate::app::config::Config) -> Self {
         Self {
-            block_size: 1024 * 1024, // 1MB
-            duration_secs: 10,
-            threads: num_cpus::get(),
+            block_size: config.compression_block_size,
+            duration_secs: config.compression_duration_secs,
+            threads: config.compression_threads,
         }
     }
 }
@@ -27,6 +27,11 @@ pub struct CompressionStress {
 }
 
 impl CompressionStress {
+    pub fn from_config(config: &crate::app::config::Config) -> Self {
+        Self {
+            config: CompressionStressConfig::from_config(config),
+        }
+    }
     pub fn run_with_counts(&self, stop_flag: Arc<AtomicBool>, op_counts: &mut [u64]) -> u64 {
         let mut handles = Vec::new();
         let results = Arc::new(std::sync::Mutex::new(vec![0u64; self.config.threads]));

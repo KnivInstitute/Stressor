@@ -8,11 +8,11 @@ pub struct TightLoopStressConfig {
     pub threads: usize,
 }
 
-impl Default for TightLoopStressConfig {
-    fn default() -> Self {
+impl TightLoopStressConfig {
+    pub fn from_config(config: &crate::app::config::Config) -> Self {
         Self {
-            duration_secs: 10,
-            threads: num_cpus::get(),
+            duration_secs: config.tightloop_duration_secs,
+            threads: config.tightloop_threads,
         }
     }
 }
@@ -22,6 +22,11 @@ pub struct TightLoopStress {
 }
 
 impl TightLoopStress {
+    pub fn from_config(config: &crate::app::config::Config) -> Self {
+        Self {
+            config: TightLoopStressConfig::from_config(config),
+        }
+    }
     pub fn run_with_counts(&self, stop_flag: Arc<AtomicBool>, op_counts: &mut [u64]) -> u64 {
         let mut handles = Vec::new();
         let results = Arc::new(std::sync::Mutex::new(vec![0u64; self.config.threads]));
